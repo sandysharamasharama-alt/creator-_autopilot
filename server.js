@@ -35,5 +35,5 @@ app.post("/api/settings",(q,r)=>{const d=read();d.settings={...d.settings,...q.b
 app.post("/api/connections/:platform",(q,r)=>{const d=read(),p=q.params.platform;if(!(p in d.connections))return r.status(400).json({error:"Unsupported platform"});d.connections[p]=!!q.body.connected;write(d);r.json({platform:p,connected:d.connections[p]})});
 app.post("/api/publish/:platform",(q,r)=>{const p=q.params.platform,d=read();if(!d.connections[p])return r.status(400).json({error:`${p} is not connected`});r.status(501).json({error:"Real OAuth/upload adapter required before publishing.",platform:p})});
 
-app.use((_,r)=>r.sendFile(path.join(__dirname,"public","index.html")));
+app.use((_,r)=>r.sendFile(path.join(__dirname,"index.html")));
 app.listen(PORT,()=>console.log(`Creator Autopilot v2: http://localhost:${PORT}`));
