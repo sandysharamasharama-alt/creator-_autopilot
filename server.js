@@ -7,7 +7,12 @@ import { fileURLToPath } from "node:url";
 dotenv.config();
 const __dirname=path.dirname(fileURLToPath(import.meta.url));
 const app=express(), PORT=process.env.PORT||3000;
-const dbFile=path.join(__dirname,"data","db.json");
+const dataDir = path.join(__dirname, "data");
+const dbFile = path.join(dataDir, "db.json");
+
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
 const seed={settings:{brandName:"Creator Autopilot",niche:"AI & Technology",timezone:"Asia/Kolkata",autoPilot:false,dailyPosts:1},posts:[],connections:{youtube:false,instagram:false,facebook:false}};
 const read=()=>{if(!fs.existsSync(dbFile))fs.writeFileSync(dbFile,JSON.stringify(seed,null,2));return JSON.parse(fs.readFileSync(dbFile,"utf8"))};
 const write=d=>fs.writeFileSync(dbFile,JSON.stringify(d,null,2));
