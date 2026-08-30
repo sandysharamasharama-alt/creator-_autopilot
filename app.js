@@ -15,6 +15,34 @@ async function connect(p,v){await api("/api/connections/"+p,{method:"POST",body:
 function settings(){app.innerHTML=`<div class="card"><h2>Workspace</h2><div class="form"><input id="bn" value="${esc(D.settings.brandName)}"><input id="nn" value="${esc(D.settings.niche)}"><input id="tz" value="${esc(D.settings.timezone)}"><input id="dp" type="number" min="1" max="10" value="${D.settings.dailyPosts}"><button class="primary" onclick="save()">Save</button></div></div>`}
 async function save(){await api("/api/settings",{method:"POST",body:JSON.stringify({brandName:bn.value,niche:nn.value,timezone:tz.value,dailyPosts:Number(dp.value)})});await load();nav("settings")}
 async function toggleAuto(){await api("/api/settings",{method:"POST",body:JSON.stringify({autoPilot:!D.settings.autoPilot})});await load()}
-function quick(){modal.classList.remove("hidden")}function closeModal(){modal.classList.add("hidden")}async function newPost(){await api("/api/posts",{method:"POST",body:JSON.stringify({title:qt.value,platform:qp.value,date:qd.value,status:"Draft"})});closeModal();await load()}
+function quick(){modal.classList.remove("hidden")}function closeModal(){modal.classList.add("hidden")}async function newPost(){
+  try{
+    const titleValue = document.querySelector("#qt").value.trim();
+    const platformValue = document.querySelector("#qp").value;
+    const dateValue = document.querySelector("#qd").value;
+
+    if(!titleValue){
+      alert("Please enter a content title");
+      return;
+    }
+
+    await api("/api/posts",{
+      method:"POST",
+      body:JSON.stringify({
+        title:titleValue,
+        platform:platformValue,
+        date:dateValue,
+        status:"Scheduled"
+      })
+    });
+
+    closeModal();
+    await load();
+    nav("planner");
+
+  }catch(e){
+    alert("Could not add to workflow: " + e.message);
+  }
+}
 function render(p){nav(p)}function cap(x){return x[0].toUpperCase()+x.slice(1)}function esc(x){return String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]))}
 document.querySelectorAll(".nav").forEach(x=>x.onclick=()=>nav(x.dataset.page));load().catch(e=>app.innerHTML=`<div class=card>${esc(e.message)}</div>`);
