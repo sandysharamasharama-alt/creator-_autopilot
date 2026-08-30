@@ -5,40 +5,408 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 dotenv.config();
-const __dirname=path.dirname(fileURLToPath(import.meta.url));
-const app=express(), PORT=process.env.PORT||3000;
-const dataDir = path.join(__dirname, "data");
-const dbFile = path.join(dataDir, "db.json");
 
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+const DATA_DIR = path.join(__dirname, "data");
+const DB_FILE = path.join(DATA_DIR, "db.json");
+
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
 }
-const seed={settings:{brandName:"Creator Autopilot",niche:"AI & Technology",timezone:"Asia/Kolkata",autoPilot:false,dailyPosts:1},posts:[],connections:{youtube:false,instagram:false,facebook:false}};
-const read=()=>{if(!fs.existsSync(dbFile))fs.writeFileSync(dbFile,JSON.stringify(seed,null,2));return JSON.parse(fs.readFileSync(dbFile,"utf8"))};
-const write=d=>fs.writeFileSync(dbFile,JSON.stringify(d,null,2));
-app.use(express.json({limit:"5mb"})); app.use(express.static(__dirname));
 
-app.get("/api/health",(_,r)=>r.json({ok:true,version:"2.0.0"}));
-app.get("/api/dashboard",(_,r)=>{const d=read();const p=d.posts;r.json({
- stats:{posts:p.length,published:p.filter(x=>x.status==="Published").length,scheduled:p.filter(x=>x.status==="Scheduled").length,views:p.reduce((a,x)=>a+Number(x.views||0),0)},
- posts:p,settings:d.settings,connections:d.connections
-})});
-app.get("/api/posts",(_,r)=>r.json(read().posts));
-app.post("/api/posts",(q,r)=>{const d=read(),b=q.body;if(!b.title?.trim())return r.status(400).json({error:"Title required"});
- const p={id:Date.now(),title:b.title.trim(),platform:b.platform||"YouTube",status:b.status||"Draft",date:b.date||"",script:b.script||"",caption:b.caption||"",views:0};
- d.posts.unshift(p);write(d);r.status(201).json(p)});
-app.patch("/api/posts/:id",(q,r)=>{const d=read(),p=d.posts.find(x=>String(x.id)===q.params.id);if(!p)return r.status(404).json({error:"Not found"});Object.assign(p,q.body);write(d);r.json(p)});
-app.delete("/api/posts/:id",(q,r)=>{const d=read();d.posts=d.posts.filter(x=>String(x.id)!==q.params.id);write(d);r.json({ok:true})});
+const DEFAULT_DB = {
+  settings: {
+    brandName: "Creator Autopilot",
+    niche: "AI & Technology",
+    timezone: "Asia/Kolkata",
+    autoPilot: false,
+    dailyPosts: 1
+  },
 
-const ideas=n=>[`3 ${n} secrets nobody tells beginners`,`5 ${n} tools worth trying this week`,`I tested the latest ${n} workflow`,`7 mistakes creators make with ${n}`,`The fastest way to learn ${n}`];
-app.post("/api/ai/ideas",(q,r)=>r.json({provider:process.env.OPENAI_API_KEY?"configured":"demo",ideas:ideas(q.body.niche||read().settings.niche)}));
-app.post("/api/ai/script",(q,r)=>{const t=q.body.title||"Your next video";r.json({provider:process.env.OPENAI_API_KEY?"configured":"demo",title:t,hook:`Stop scrolling: here is what you need to know about ${t}.`,script:`HOOK\\n${t}\\n\\nBODY\\n1. Explain the problem.\\n2. Give three useful points.\\n3. Show a practical example.\\n4. End with one clear takeaway.\\n\\nCTA\\nFollow for more, save this post, and share it with another creator.`})});
-app.post("/api/ai/caption",(q,r)=>r.json({caption:`${q.body.title||"New post"} 🚀\\n\\nHere are the key ideas you need to know. Save this for later and follow for more.\\n\\n#AI #Creators #ContentCreation`}));
-app.post("/api/ai/plan",(q,r)=>{const d=read(),n=q.body.niche||d.settings.niche;const out=ideas(n).slice(0,Math.max(1,Math.min(7,Number(q.body.days)||7))).map((title,i)=>({title,platform:["YouTube","Instagram","Facebook"][i%3],date:new Date(Date.now()+i*86400000).toISOString().slice(0,10)}));r.json({plan:out})});
+  posts: [],
 
-app.post("/api/settings",(q,r)=>{const d=read();d.settings={...d.settings,...q.body};write(d);r.json(d.settings)});
-app.post("/api/connections/:platform",(q,r)=>{const d=read(),p=q.params.platform;if(!(p in d.connections))return r.status(400).json({error:"Unsupported platform"});d.connections[p]=!!q.body.connected;write(d);r.json({platform:p,connected:d.connections[p]})});
-app.post("/api/publish/:platform",(q,r)=>{const p=q.params.platform,d=read();if(!d.connections[p])return r.status(400).json({error:`${p} is not connected`});r.status(501).json({error:"Real OAuth/upload adapter required before publishing.",platform:p})});
+  connections: {
+    youtube: false,
+    instagram: false,
+    facebook: false
+  }
+};
 
-app.use((_,r)=>r.sendFile(path.join(__dirname,"index.html")));
-app.listen(PORT,()=>console.log(`Creator Autopilot v2: http://localhost:${PORT}`));
+function readDB() {
+  try {
+    if (!fs.existsSync(DB_FILE)) {
+      fs.writeFileSync(
+        DB_FILE,
+        JSON.stringify(DEFAULT_DB, null, 2)
+      );
+    }
+
+    return JSON.parse(
+      fs.readFileSync(DB_FILE, "utf8")
+    );
+  } catch (error) {
+    console.error("Database read error:", error);
+    return structuredClone(DEFAULT_DB);
+  }
+}
+
+function writeDB(data) {
+  fs.writeFileSync(
+    DB_FILE,
+    JSON.stringify(data, null, 2)
+  );
+}
+
+app.use(express.json({ limit: "5mb" }));
+
+app.use(
+  express.static(__dirname)
+);
+
+/* ---------------- HEALTH ---------------- */
+
+app.get("/api/health", (req, res) => {
+  res.json({
+    ok: true,
+    service: "Creator Autopilot",
+    version: "2.0.0"
+  });
+});
+
+/* ---------------- DASHBOARD ---------------- */
+
+app.get("/api/dashboard", (req, res) => {
+  const db = readDB();
+  const posts = db.posts || [];
+
+  res.json({
+    stats: {
+      posts: posts.length,
+
+      published: posts.filter(
+        post => post.status === "Published"
+      ).length,
+
+      scheduled: posts.filter(
+        post => post.status === "Scheduled"
+      ).length,
+
+      views: posts.reduce(
+        (total, post) =>
+          total + Number(post.views || 0),
+        0
+      )
+    },
+
+    posts,
+    settings: db.settings,
+    connections: db.connections
+  });
+});
+
+/* ---------------- POSTS ---------------- */
+
+app.get("/api/posts", (req, res) => {
+  res.json(readDB().posts);
+});
+
+app.post("/api/posts", (req, res) => {
+  const db = readDB();
+  const body = req.body || {};
+
+  if (
+    typeof body.title !== "string" ||
+    !body.title.trim()
+  ) {
+    return res.status(400).json({
+      error: "Title required"
+    });
+  }
+
+  const post = {
+    id: Date.now(),
+    title: body.title.trim(),
+    platform: body.platform || "YouTube",
+    status: body.status || "Draft",
+    date: body.date || "",
+    script: body.script || "",
+    caption: body.caption || "",
+    views: 0,
+    createdAt: new Date().toISOString()
+  };
+
+  db.posts.unshift(post);
+  writeDB(db);
+
+  res.status(201).json(post);
+});
+
+app.patch("/api/posts/:id", (req, res) => {
+  const db = readDB();
+
+  const post = db.posts.find(
+    item => String(item.id) === req.params.id
+  );
+
+  if (!post) {
+    return res.status(404).json({
+      error: "Post not found"
+    });
+  }
+
+  Object.assign(post, req.body || {});
+
+  writeDB(db);
+
+  res.json(post);
+});
+
+app.delete("/api/posts/:id", (req, res) => {
+  const db = readDB();
+
+  db.posts = db.posts.filter(
+    item => String(item.id) !== req.params.id
+  );
+
+  writeDB(db);
+
+  res.json({ ok: true });
+});
+
+/* ---------------- AI IDEAS ---------------- */
+
+function createIdeas(niche) {
+  return [
+    `3 ${niche} secrets nobody tells beginners`,
+    `5 ${niche} tools worth trying this week`,
+    `I tested the latest ${niche} workflow`,
+    `7 mistakes creators make with ${niche}`,
+    `The fastest way to learn ${niche}`
+  ];
+}
+
+app.post("/api/ai/ideas", (req, res) => {
+  const db = readDB();
+
+  const niche =
+    req.body?.niche?.trim() ||
+    db.settings.niche ||
+    "AI & Technology";
+
+  res.json({
+    provider: process.env.OPENAI_API_KEY
+      ? "openai-ready"
+      : "demo",
+
+    ideas: createIdeas(niche)
+  });
+});
+
+/* ---------------- SCRIPT ---------------- */
+
+app.post("/api/ai/script", (req, res) => {
+  const title =
+    req.body?.title?.trim() ||
+    "Your next video";
+
+  const hook =
+    `Stop scrolling: here is what you need to know about ${title}.`;
+
+  const script = `HOOK
+
+${title}
+
+BODY
+
+1. Start with the main problem.
+2. Explain three useful points.
+3. Show a practical example.
+4. Give one clear takeaway.
+
+CTA
+
+Follow for more, save this post,
+and share it with another creator.`;
+
+  res.json({
+    provider: process.env.OPENAI_API_KEY
+      ? "openai-ready"
+      : "demo",
+
+    title,
+    hook,
+    script
+  });
+});
+
+/* ---------------- CAPTION ---------------- */
+
+app.post("/api/ai/caption", (req, res) => {
+  const title =
+    req.body?.title?.trim() ||
+    "New post";
+
+  const caption = `${title} 🚀
+
+Here are the key ideas you need to know.
+
+Save this for later and follow for more.
+
+#AI #Technology #Creators #ContentCreation`;
+
+  res.json({
+    provider: process.env.OPENAI_API_KEY
+      ? "openai-ready"
+      : "demo",
+
+    caption
+  });
+});
+
+/* ---------------- CONTENT PLAN ---------------- */
+
+app.post("/api/ai/plan", (req, res) => {
+  const db = readDB();
+
+  const niche =
+    req.body?.niche ||
+    db.settings.niche ||
+    "AI & Technology";
+
+  const requestedDays =
+    Number(req.body?.days) || 7;
+
+  const days = Math.max(
+    1,
+    Math.min(7, requestedDays)
+  );
+
+  const platforms = [
+    "YouTube",
+    "Instagram",
+    "Facebook"
+  ];
+
+  const plan = createIdeas(niche)
+    .slice(0, days)
+    .map((title, index) => ({
+      title,
+
+      platform:
+        platforms[index % platforms.length],
+
+      date: new Date(
+        Date.now() +
+        index * 24 * 60 * 60 * 1000
+      )
+        .toISOString()
+        .slice(0, 10)
+    }));
+
+  res.json({ plan });
+});
+
+/* ---------------- SETTINGS ---------------- */
+
+app.post("/api/settings", (req, res) => {
+  const db = readDB();
+
+  db.settings = {
+    ...db.settings,
+    ...(req.body || {})
+  };
+
+  writeDB(db);
+
+  res.json(db.settings);
+});
+
+/* ---------------- SOCIAL CONNECTION STATE ---------------- */
+
+app.post(
+  "/api/connections/:platform",
+  (req, res) => {
+    const db = readDB();
+    const platform = req.params.platform;
+
+    if (!(platform in db.connections)) {
+      return res.status(400).json({
+        error: "Unsupported platform"
+      });
+    }
+
+    db.connections[platform] =
+      Boolean(req.body?.connected);
+
+    writeDB(db);
+
+    res.json({
+      platform,
+      connected: db.connections[platform]
+    });
+  }
+);
+
+/* ---------------- REAL PUBLISHING PLACEHOLDER ---------------- */
+
+app.post(
+  "/api/publish/:platform",
+  (req, res) => {
+    const platform = req.params.platform;
+
+    const allowed = [
+      "youtube",
+      "instagram",
+      "facebook"
+    ];
+
+    if (!allowed.includes(platform)) {
+      return res.status(400).json({
+        error: "Unsupported platform"
+      });
+    }
+
+    /*
+      IMPORTANT:
+
+      Real publishing requires OAuth/API
+      credentials from the platform.
+
+      Do NOT pretend the post was published.
+    */
+
+    return res.status(501).json({
+      published: false,
+
+      error:
+        "Social OAuth/API integration is required.",
+
+      platform
+    });
+  }
+);
+
+/* ---------------- FRONTEND ---------------- */
+
+app.get("*", (req, res) => {
+  res.sendFile(
+    path.join(__dirname, "index.html")
+  );
+});
+
+/* ---------------- START ---------------- */
+
+app.listen(
+  PORT,
+  "0.0.0.0",
+  () => {
+    console.log(
+      `Creator Autopilot running on port ${PORT}`
+    );
+  }
+);
