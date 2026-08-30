@@ -1,7 +1,75 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Creator Autopilot AI</title><link rel="stylesheet" href="/styles.css"></head>
-<body><div class="layout"><aside><div class="logo">✦ Creator<br><span>Autopilot AI</span></div><nav>
-<button class="nav active" data-page="home">Overview</button><button class="nav" data-page="studio">AI Studio</button><button class="nav" data-page="planner">Auto Planner</button><button class="nav" data-page="calendar">Calendar</button><button class="nav" data-page="social">Social Accounts</button><button class="nav" data-page="settings">Settings</button></nav>
-<div class="autobox"><small>AUTOPILOT</small><strong id="autoState">OFF</strong><button onclick="toggleAuto()">Toggle</button></div></aside>
-<main><header><div><small>AI CREATOR OPERATING SYSTEM</small><h1 id="title">Overview</h1></div><button class="primary" onclick="quick()">＋ New content</button></header><div id="app"></div></main></div>
-<div id="modal" class="modal hidden"><div class="dialog"><button class="close" onclick="closeModal()">×</button><h2>New content</h2><input id="qt" placeholder="What should we create?"><select id="qp"><option>YouTube</option><option>Instagram</option><option>Facebook</option></select><input id="qd" type="date"><button class="primary" onclick="newPost()">Add to workflow</button></div></div>
-<script src="/app.js"></script></body></html>
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Creator Autopilot AI</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+
+<body>
+
+<div class="layout">
+
+<aside>
+<div class="logo">✦ Creator<br><span>Autopilot AI</span></div>
+
+<nav>
+<button class="nav active" data-page="home">Overview</button>
+<button class="nav" data-page="studio">AI Studio</button>
+<button class="nav" data-page="planner">Auto Planner</button>
+<button class="nav" data-page="calendar">Calendar</button>
+<button class="nav" data-page="social">Social Accounts</button>
+<button class="nav" data-page="settings">Settings</button>
+</nav>
+
+<div class="autobox">
+<small>AUTOPILOT</small>
+<strong id="autoState">OFF</strong>
+<button onclick="toggleAuto()">Toggle</button>
+</div>
+
+</aside>
+
+<main>
+
+<header>
+<div>
+<small>AI CREATOR OPERATING SYSTEM</small>
+<h1 id="title">Overview</h1>
+</div>
+
+<button class="primary" onclick="quick()">＋ New content</button>
+</header>
+
+<div id="app"></div>
+
+</main>
+</div>
+
+<div id="modal" class="modal hidden">
+<div class="dialog">
+
+<button class="close" onclick="closeModal()">×</button>
+
+<h2>New content</h2>
+
+<input id="qt" placeholder="What should we create?">
+
+<select id="qp">
+<option>YouTube</option>
+<option>Instagram</option>
+<option>Facebook</option>
+</select>
+
+<input id="qd" type="date">
+
+<button class="primary" onclick="newPost()">Add to workflow</button>
+
+</div>
+</div>
+
+<script src="/app.js"></script>
+
+</body>
+</html>
