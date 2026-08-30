@@ -1,4 +1,4 @@
-const API_URL = "";
+const API_URL = "https://creator-autopilot-7.onrender.com";
 let D = {
   stats: { posts: 0, published: 0, scheduled: 0, views: 0 },
   posts: [],
