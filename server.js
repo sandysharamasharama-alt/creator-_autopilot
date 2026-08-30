@@ -11,7 +11,7 @@ const dbFile=path.join(__dirname,"data","db.json");
 const seed={settings:{brandName:"Creator Autopilot",niche:"AI & Technology",timezone:"Asia/Kolkata",autoPilot:false,dailyPosts:1},posts:[],connections:{youtube:false,instagram:false,facebook:false}};
 const read=()=>{if(!fs.existsSync(dbFile))fs.writeFileSync(dbFile,JSON.stringify(seed,null,2));return JSON.parse(fs.readFileSync(dbFile,"utf8"))};
 const write=d=>fs.writeFileSync(dbFile,JSON.stringify(d,null,2));
-app.use(express.json({limit:"5mb"})); app.use(express.static(path.join(__dirname,"public")));
+app.use(express.json({limit:"5mb"})); app.use(express.static(__dirname)));
 
 app.get("/api/health",(_,r)=>r.json({ok:true,version:"2.0.0"}));
 app.get("/api/dashboard",(_,r)=>{const d=read();const p=d.posts;r.json({
