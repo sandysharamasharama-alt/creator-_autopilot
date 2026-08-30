@@ -15,9 +15,9 @@ const PORT = process.env.PORT || 3000;
 const DATA_DIR = path.join(__dirname, "data");
 const DB_FILE = path.join(DATA_DIR, "db.json");
 
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
+/* =========================
+   DATABASE
+========================= */
 
 const DEFAULT_DB = {
   settings: {
@@ -37,6 +37,10 @@ const DEFAULT_DB = {
   }
 };
 
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
 function readDB() {
   try {
     if (!fs.existsSync(DB_FILE)) {
@@ -46,9 +50,25 @@ function readDB() {
       );
     }
 
-    return JSON.parse(
+    const data = JSON.parse(
       fs.readFileSync(DB_FILE, "utf8")
     );
+
+    return {
+      ...DEFAULT_DB,
+      ...data,
+      settings: {
+        ...DEFAULT_DB.settings,
+        ...(data.settings || {})
+      },
+      connections: {
+        ...DEFAULT_DB.connections,
+        ...(data.connections || {})
+      },
+      posts: Array.isArray(data.posts)
+        ? data.posts
+        : []
+    };
   } catch (error) {
     console.error("Database read error:", error);
     return structuredClone(DEFAULT_DB);
@@ -62,67 +82,90 @@ function writeDB(data) {
   );
 }
 
-app.use(express.json({ limit: "5mb" }));
+/* =========================
+   MIDDLEWARE
+========================= */
+
+app.use(
+  express.json({
+    limit: "5mb"
+  })
+);
 
 app.use(
   express.static(__dirname)
 );
 
-/* ---------------- HEALTH ---------------- */
+/* =========================
+   HEALTH
+========================= */
 
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
     service: "Creator Autopilot",
-    version: "2.0.0"
+    version: "2.1.0"
   });
 });
 
-/* ---------------- DASHBOARD ---------------- */
+/* =========================
+   DASHBOARD
+========================= */
 
 app.get("/api/dashboard", (req, res) => {
   const db = readDB();
-  const posts = db.posts || [];
+  const posts = db.posts;
+
+  const published = posts.filter(
+    post => post.status === "Published"
+  );
+
+  const scheduled = posts.filter(
+    post => post.status === "Scheduled"
+  );
+
+  const views = posts.reduce(
+    (total, post) =>
+      total + Number(post.views || 0),
+    0
+  );
 
   res.json({
     stats: {
       posts: posts.length,
-
-      published: posts.filter(
-        post => post.status === "Published"
-      ).length,
-
-      scheduled: posts.filter(
-        post => post.status === "Scheduled"
-      ).length,
-
-      views: posts.reduce(
-        (total, post) =>
-          total + Number(post.views || 0),
-        0
-      )
+      published: published.length,
+      scheduled: scheduled.length,
+      views
     },
 
     posts,
+
     settings: db.settings,
+
     connections: db.connections
   });
 });
 
-/* ---------------- POSTS ---------------- */
+/* =========================
+   POSTS
+========================= */
 
 app.get("/api/posts", (req, res) => {
-  res.json(readDB().posts);
+  const db = readDB();
+
+  res.json(db.posts);
 });
 
 app.post("/api/posts", (req, res) => {
   const db = readDB();
   const body = req.body || {};
 
-  if (
-    typeof body.title !== "string" ||
-    !body.title.trim()
-  ) {
+  const title =
+    typeof body.title === "string"
+      ? body.title.trim()
+      : "";
+
+  if (!title) {
     return res.status(400).json({
       error: "Title required"
     });
@@ -130,7 +173,7 @@ app.post("/api/posts", (req, res) => {
 
   const post = {
     id: Date.now(),
-    title: body.title.trim(),
+    title,
     platform: body.platform || "YouTube",
     status: body.status || "Draft",
     date: body.date || "",
@@ -141,6 +184,7 @@ app.post("/api/posts", (req, res) => {
   };
 
   db.posts.unshift(post);
+
   writeDB(db);
 
   res.status(201).json(post);
@@ -150,7 +194,9 @@ app.patch("/api/posts/:id", (req, res) => {
   const db = readDB();
 
   const post = db.posts.find(
-    item => String(item.id) === req.params.id
+    item =>
+      String(item.id) ===
+      String(req.params.id)
   );
 
   if (!post) {
@@ -170,15 +216,21 @@ app.delete("/api/posts/:id", (req, res) => {
   const db = readDB();
 
   db.posts = db.posts.filter(
-    item => String(item.id) !== req.params.id
+    item =>
+      String(item.id) !==
+      String(req.params.id)
   );
 
   writeDB(db);
 
-  res.json({ ok: true });
+  res.json({
+    ok: true
+  });
 });
 
-/* ---------------- AI IDEAS ---------------- */
+/* =========================
+   AI IDEAS
+========================= */
 
 function createIdeas(niche) {
   return [
@@ -194,9 +246,10 @@ app.post("/api/ai/ideas", (req, res) => {
   const db = readDB();
 
   const niche =
-    req.body?.niche?.trim() ||
-    db.settings.niche ||
-    "AI & Technology";
+    typeof req.body?.niche === "string" &&
+    req.body.niche.trim()
+      ? req.body.niche.trim()
+      : db.settings.niche;
 
   res.json({
     provider: process.env.OPENAI_API_KEY
@@ -207,12 +260,16 @@ app.post("/api/ai/ideas", (req, res) => {
   });
 });
 
-/* ---------------- SCRIPT ---------------- */
+/* =========================
+   AI SCRIPT
+========================= */
 
 app.post("/api/ai/script", (req, res) => {
   const title =
-    req.body?.title?.trim() ||
-    "Your next video";
+    typeof req.body?.title === "string" &&
+    req.body.title.trim()
+      ? req.body.title.trim()
+      : "Your next video";
 
   const hook =
     `Stop scrolling: here is what you need to know about ${title}.`;
@@ -244,12 +301,16 @@ and share it with another creator.`;
   });
 });
 
-/* ---------------- CAPTION ---------------- */
+/* =========================
+   AI CAPTION
+========================= */
 
 app.post("/api/ai/caption", (req, res) => {
   const title =
-    req.body?.title?.trim() ||
-    "New post";
+    typeof req.body?.title === "string" &&
+    req.body.title.trim()
+      ? req.body.title.trim()
+      : "New post";
 
   const caption = `${title} 🚀
 
@@ -268,22 +329,28 @@ Save this for later and follow for more.
   });
 });
 
-/* ---------------- CONTENT PLAN ---------------- */
+/* =========================
+   AI CONTENT PLAN
+========================= */
 
 app.post("/api/ai/plan", (req, res) => {
   const db = readDB();
 
   const niche =
-    req.body?.niche ||
-    db.settings.niche ||
-    "AI & Technology";
+    typeof req.body?.niche === "string" &&
+    req.body.niche.trim()
+      ? req.body.niche.trim()
+      : db.settings.niche;
 
-  const requestedDays =
-    Number(req.body?.days) || 7;
+  let days = Number(req.body?.days);
 
-  const days = Math.max(
+  if (!Number.isFinite(days)) {
+    days = 7;
+  }
+
+  days = Math.max(
     1,
-    Math.min(7, requestedDays)
+    Math.min(7, Math.floor(days))
   );
 
   const platforms = [
@@ -294,24 +361,30 @@ app.post("/api/ai/plan", (req, res) => {
 
   const plan = createIdeas(niche)
     .slice(0, days)
-    .map((title, index) => ({
-      title,
-
-      platform:
-        platforms[index % platforms.length],
-
-      date: new Date(
+    .map((title, index) => {
+      const date = new Date(
         Date.now() +
         index * 24 * 60 * 60 * 1000
       )
         .toISOString()
-        .slice(0, 10)
-    }));
+        .slice(0, 10);
 
-  res.json({ plan });
+      return {
+        title,
+        platform:
+          platforms[index % platforms.length],
+        date
+      };
+    });
+
+  res.json({
+    plan
+  });
 });
 
-/* ---------------- SETTINGS ---------------- */
+/* =========================
+   SETTINGS
+========================= */
 
 app.post("/api/settings", (req, res) => {
   const db = readDB();
@@ -326,7 +399,9 @@ app.post("/api/settings", (req, res) => {
   res.json(db.settings);
 });
 
-/* ---------------- SOCIAL CONNECTION STATE ---------------- */
+/* =========================
+   SOCIAL CONNECTIONS
+========================= */
 
 app.post(
   "/api/connections/:platform",
@@ -334,7 +409,12 @@ app.post(
     const db = readDB();
     const platform = req.params.platform;
 
-    if (!(platform in db.connections)) {
+    if (
+      !Object.prototype.hasOwnProperty.call(
+        db.connections,
+        platform
+      )
+    ) {
       return res.status(400).json({
         error: "Unsupported platform"
       });
@@ -347,16 +427,20 @@ app.post(
 
     res.json({
       platform,
-      connected: db.connections[platform]
+      connected:
+        db.connections[platform]
     });
   }
 );
 
-/* ---------------- REAL PUBLISHING PLACEHOLDER ---------------- */
+/* =========================
+   PUBLISH
+========================= */
 
 app.post(
   "/api/publish/:platform",
   (req, res) => {
+    const db = readDB();
     const platform = req.params.platform;
 
     const allowed = [
@@ -371,35 +455,46 @@ app.post(
       });
     }
 
+    if (!db.connections[platform]) {
+      return res.status(400).json({
+        published: false,
+        error:
+          `${platform} is not connected`
+      });
+    }
+
     /*
       IMPORTANT:
-
-      Real publishing requires OAuth/API
-      credentials from the platform.
-
-      Do NOT pretend the post was published.
+      Real publishing requires official
+      OAuth/API credentials and upload
+      implementation for each platform.
     */
 
     return res.status(501).json({
       published: false,
-
+      platform,
       error:
-        "Social OAuth/API integration is required.",
-
-      platform
+        "Real social publishing is not configured yet."
     });
   }
 );
 
-/* ---------------- FRONTEND ---------------- */
+/* =========================
+   FRONTEND
+========================= */
 
-app.get("*", (req, res) => {
+app.get(/.*/, (req, res) => {
   res.sendFile(
-    path.join(__dirname, "index.html")
+    path.join(
+      __dirname,
+      "index.html"
+    )
   );
 });
 
-/* ---------------- START ---------------- */
+/* =========================
+   START SERVER
+========================= */
 
 app.listen(
   PORT,
